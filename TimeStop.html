@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Sas de Décompression Vigilant</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --text: #e6e6e6;
+            --accent: #e74c3c;
+            --safe: #2ecc71;
+        }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: var(--bg); color: var(--text);
+            margin: 0; height: 100vh; overflow: hidden;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        #timer { font-size: 8em; font-weight: bold; font-variant-numeric: tabular-nums; }
+        .info { font-size: 1.2em; color: #888; margin-bottom: 20px; text-align: center; max-width: 80%; }
+        
+        /* Style du Token (Cible) */
+        #token {
+            position: absolute;
+            width: 50px; height: 50px;
+            background: var(--safe);
+            border-radius: 50%;
+            display: none;
+            cursor: pointer;
+            border: 3px solid white;
+            box-shadow: 0 0 15px var(--safe);
+            z-index: 100;
+            text-align: center;
+            line-height: 50px;
+            font-weight: bold;
+            user-select: none;
+        }
+
+        .penalty-alert {
+            position: fixed; top: 20px; background: var(--accent);
+            padding: 15px 30px; border-radius: 10px; font-weight: bold;
+            display: none; animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(10px); }
+            50% { transform: translateX(-10px); }
+            100% { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="penaltyBox" class="penalty-alert">⚠️ ABSENCE DÉTECTÉE : +5 MINUTES</div>
+
+<div class="info">
+    RESTE CALME ET ATTENTIF.<br>
+    Appuie sur les cercles de validation qui apparaissent pour prouver ta présence.
+</div>
+
+<div id="timer">05:00</div>
+
+<div id="token">!</div>
+
+<script>
+    let timeLeft = 300; // 5 minutes en secondes
+    let timerElement = document.getElementById('timer');
+    let tokenElement = document.getElementById('token');
+    let penaltyBox = document.getElementById('penaltyBox');
+    let isFinished = false;
+
+    // Mise à jour du chrono toutes les secondes
+    const countdown = setInterval(() => {
+        if (timeLeft <= 0) {
+            clearInterval(countdown);
+            finish();
+            return;
+        }
+        timeLeft--;
+        updateDisplay();
+    }, 1000);
+
+    function updateDisplay() {
+        let mins = Math.floor(timeLeft / 60);
+        let secs = timeLeft % 60;
+        timerElement.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        
+        // Change la couleur du texte si le temps augmente (pénalité)
+        if (penaltyBox.style.display === 'block') {
+            timerElement.style.color = 'var(--accent)';
+        } else {
+            timerElement.style.color = 'var(--text)';
+        }
+    }
+
+    // --- LOGIQUE DES TOKENS ---
+
+    function spawnToken() {
+        if (isFinished) return;
+
+        // Position aléatoire (en restant à 10% des bords)
+        let x = Math.random() * 80 + 10;
+        let y = Math.random() * 80 + 10;
+        
+        tokenElement.style.left = x + "%";
+        tokenElement.style.top = y + "%";
+        tokenElement.style.display = "block";
+        tokenElement.innerText = Math.floor(Math.random() * 9); // Chiffre aléatoire interne
+
+        // L'élève a 4 secondes pour cliquer
+        let caught = false;
+        
+        tokenElement.onclick = () => {
+            caught = true;
+            tokenElement.style.display = "none";
+        };
+
+        setTimeout(() => {
+            if (!caught && !isFinished) {
+                applyPenalty();
+            }
+            tokenElement.style.display = "none";
+            
+            // Planifie le prochain token (entre 20 et 40 sec après la disparition du précédent)
+            if (!isFinished) {
+                setTimeout(spawnToken, (Math.random() * 20 + 20) * 1000);
+            }
+        }, 4000); 
+    }
+
+    function applyPenalty() {
+        timeLeft += 300; // Ajoute 5 minutes
+        penaltyBox.style.display = "block";
+        setTimeout(() => { penaltyBox.style.display = "none"; }, 4000);
+        updateDisplay();
+    }
+
+    function finish() {
+        isFinished = true;
+        timerElement.innerText = "TERMINÉ";
+        timerElement.style.color = "var(--safe)";
+        tokenElement.style.display = "none";
+        alert("Session terminée. Tu peux maintenant fermer cette page.");
+    }
+
+    // Démarre le premier cycle de tokens après 15 secondes
+    setTimeout(spawnToken, 15000);
+
+</script>
+
+</body>
+</html>
