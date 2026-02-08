@@ -16,30 +16,21 @@
             margin: 0; height: 100vh; overflow: hidden;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
-        #timer { font-size: 8em; font-weight: bold; font-variant-numeric: tabular-nums; }
+        #timer { font-size: 8em; font-weight: bold; font-variant-numeric: tabular-nums; transition: color 0.3s; }
         .info { font-size: 1.2em; color: #888; margin-bottom: 20px; text-align: center; max-width: 80%; }
         
-        /* Style du Token (Cible) */
         #token {
-            position: absolute;
-            width: 50px; height: 50px;
-            background: var(--safe);
-            border-radius: 50%;
-            display: none;
-            cursor: pointer;
-            border: 3px solid white;
-            box-shadow: 0 0 15px var(--safe);
-            z-index: 100;
-            text-align: center;
-            line-height: 50px;
-            font-weight: bold;
-            user-select: none;
+            position: absolute; width: 60px; height: 60px;
+            background: var(--safe); border-radius: 50%;
+            display: none; cursor: pointer; border: 4px solid white;
+            box-shadow: 0 0 20px var(--safe); z-index: 100;
+            text-align: center; line-height: 60px; font-weight: bold; font-size: 1.5em;
         }
 
         .penalty-alert {
             position: fixed; top: 20px; background: var(--accent);
             padding: 15px 30px; border-radius: 10px; font-weight: bold;
-            display: none; animation: shake 0.5s;
+            display: none; animation: shake 0.5s; z-index: 1000;
         }
 
         @keyframes shake {
@@ -52,25 +43,43 @@
 </head>
 <body>
 
-<div id="penaltyBox" class="penalty-alert">⚠️ ABSENCE DÉTECTÉE : +5 MINUTES</div>
+<div id="penaltyBox" class="penalty-alert">⚠️ PÉNALITÉ APPLIQUÉE (+5 MIN)</div>
 
-<div class="info">
+<div class="info" id="status-text">
     RESTE CALME ET ATTENTIF.<br>
-    Appuie sur les cercles de validation qui apparaissent pour prouver ta présence.
+    Appuie sur les cercles pour valider ta présence.
 </div>
 
 <div id="timer">05:00</div>
-
-<div id="token">!</div>
+<div id="token">?</div>
 
 <script>
-    let timeLeft = 300; // 5 minutes en secondes
-    let timerElement = document.getElementById('timer');
-    let tokenElement = document.getElementById('token');
-    let penaltyBox = document.getElementById('penaltyBox');
+    // --- CONFIGURATION & SAUVEGARDE ---
+    const STORAGE_KEY_TIME = "_sas_time_left";
+    const STORAGE_KEY_EXIT = "_sas_exit_timestamp";
+    
+    let timeLeft = parseInt(localStorage.getItem(STORAGE_KEY_TIME)) || 300;
     let isFinished = false;
 
-    // Mise à jour du chrono toutes les secondes
+    const timerElement = document.getElementById('timer');
+    const tokenElement = document.getElementById('token');
+    const penaltyBox = document.getElementById('penaltyBox');
+
+    // --- VÉRIFICATION DE L'ABANDON AU CHARGEMENT ---
+    function checkAbandonment() {
+        const lastExit = localStorage.getItem(STORAGE_KEY_EXIT);
+        if (lastExit) {
+            const timeDiff = (Date.now() - parseInt(lastExit)) / 1000; // en secondes
+            if (timeDiff > 20 && timeLeft > 0) {
+                applyPenalty("ABANDON DÉTECTÉ (>20s)");
+            }
+        }
+    }
+
+    checkAbandonment();
+    updateDisplay();
+
+    // --- CHRONO ---
     const countdown = setInterval(() => {
         if (timeLeft <= 0) {
             clearInterval(countdown);
@@ -78,39 +87,36 @@
             return;
         }
         timeLeft--;
+        localStorage.setItem(STORAGE_KEY_TIME, timeLeft);
         updateDisplay();
     }, 1000);
+
+    // Sauvegarde l'heure de fermeture de la page
+    window.addEventListener('beforeunload', () => {
+        if (!isFinished) {
+            localStorage.setItem(STORAGE_KEY_EXIT, Date.now());
+        }
+    });
 
     function updateDisplay() {
         let mins = Math.floor(timeLeft / 60);
         let secs = timeLeft % 60;
         timerElement.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-        
-        // Change la couleur du texte si le temps augmente (pénalité)
-        if (penaltyBox.style.display === 'block') {
-            timerElement.style.color = 'var(--accent)';
-        } else {
-            timerElement.style.color = 'var(--text)';
-        }
     }
 
-    // --- LOGIQUE DES TOKENS ---
-
+    // --- LOGIQUE DES TOKENS (VIGILANCE) ---
     function spawnToken() {
         if (isFinished) return;
 
-        // Position aléatoire (en restant à 10% des bords)
-        let x = Math.random() * 80 + 10;
-        let y = Math.random() * 80 + 10;
+        let x = Math.random() * 70 + 15;
+        let y = Math.random() * 70 + 15;
         
         tokenElement.style.left = x + "%";
         tokenElement.style.top = y + "%";
         tokenElement.style.display = "block";
-        tokenElement.innerText = Math.floor(Math.random() * 9); // Chiffre aléatoire interne
+        tokenElement.innerText = Math.floor(Math.random() * 9); 
 
-        // L'élève a 4 secondes pour cliquer
         let caught = false;
-        
         tokenElement.onclick = () => {
             caught = true;
             tokenElement.style.display = "none";
@@ -118,36 +124,42 @@
 
         setTimeout(() => {
             if (!caught && !isFinished) {
-                applyPenalty();
+                applyPenalty("ABSENCE DÉTECTÉE");
             }
             tokenElement.style.display = "none";
-            
-            // Planifie le prochain token (entre 20 et 40 sec après la disparition du précédent)
             if (!isFinished) {
-                setTimeout(spawnToken, (Math.random() * 20 + 20) * 1000);
+                setTimeout(spawnToken, (Math.random() * 15 + 15) * 1000);
             }
         }, 4000); 
     }
 
-    function applyPenalty() {
-        timeLeft += 300; // Ajoute 5 minutes
+    function applyPenalty(reason) {
+        timeLeft += 300; // +5 minutes
+        localStorage.setItem(STORAGE_KEY_TIME, timeLeft);
+        penaltyBox.innerText = `⚠️ ${reason} : +5 MIN`;
         penaltyBox.style.display = "block";
-        setTimeout(() => { penaltyBox.style.display = "none"; }, 4000);
+        timerElement.style.color = "var(--accent)";
+        
+        setTimeout(() => { 
+            penaltyBox.style.display = "none"; 
+            timerElement.style.color = "var(--text)";
+        }, 5000);
         updateDisplay();
     }
 
     function finish() {
         isFinished = true;
+        localStorage.removeItem(STORAGE_KEY_TIME);
+        localStorage.removeItem(STORAGE_KEY_EXIT);
         timerElement.innerText = "TERMINÉ";
         timerElement.style.color = "var(--safe)";
+        document.getElementById('status-text').innerText = "Session de réflexion validée.";
         tokenElement.style.display = "none";
-        alert("Session terminée. Tu peux maintenant fermer cette page.");
     }
 
-    // Démarre le premier cycle de tokens après 15 secondes
-    setTimeout(spawnToken, 15000);
+    // Premier token après 10 secondes
+    setTimeout(spawnToken, 10000);
 
 </script>
-
 </body>
 </html>
